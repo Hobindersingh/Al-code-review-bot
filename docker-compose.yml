@@ -1,0 +1,23 @@
+services:
+  mongo:
+    image: mongo:7
+    volumes: [mongo-data:/data/db]
+    healthcheck: { test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"], interval: 5s, retries: 10 }
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]   # persist the queue across restarts
+    volumes: [redis-data:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 10 }
+  api:
+    build: .
+    env_file: .env
+    environment: { MONGO_URI: "mongodb://mongo:27017/ai-code-review", REDIS_URL: "redis://redis:6379" }
+    ports: ["4000:4000"]
+    depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
+  worker:
+    build: .
+    command: ["node", "src/worker.js"]
+    env_file: .env
+    environment: { MONGO_URI: "mongodb://mongo:27017/ai-code-review", REDIS_URL: "redis://redis:6379" }
+    depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
+volumes: { mongo-data: {}, redis-data: {} }
